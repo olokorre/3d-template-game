@@ -55,6 +55,22 @@ Este projeto é um motor de jogo 3D simples escrito em **C++20** utilizando **Vu
 - **W / A / S / D**: Mover o Personagem (Relativo à Câmera).
 - **Espaço**: Pular.
 
+## Ferramentas de Desenvolvimento
+
+### Editor de Níveis Visual (GUI)
+Para abrir o editor visual e desenhar seu mapa:
+
+```bash
+python3 tools/level_manager.py level1
+```
+
+**Funcionalidades:**
+- **Pintar**: Selecione uma ferramenta (Wall, Player, Empty) e clique/arraste na grade.
+- **Save & Build**: Salva o arquivo e recompila o header automaticamente.
+- **Resize**: Altera o tamanho do mapa.
+
+Obs: Após clicar em "Save & Build", você ainda precisa recompilar o jogo (`cmake --build .`) para atualizar o binário.
+
 ## Status Atual
 
 - [x] Renderização Vulkan básica (Triângulos, Shades).

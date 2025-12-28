@@ -1,0 +1,4 @@
+# No external pip dependencies are required currently.
+# The script uses the standard library 'tkinter'.
+# On Debian/Ubuntu based systems, you may need to install it via:
+# sudo apt-get install python3-tk

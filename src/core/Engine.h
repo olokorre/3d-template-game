@@ -70,6 +70,7 @@ private:
     void createPipeline();
     void createCommandBuffer();
     void createScene();
+    void loadLevel(std::string filename);
     void updateCamera();
     void drawFrame();
     void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);

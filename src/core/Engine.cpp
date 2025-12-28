@@ -8,7 +8,11 @@
 #include <iostream>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 #include <stdexcept>
+#include <fstream>
+#include <sstream>
+#include "../assets/levels/Level1.h"
 
 Engine::Engine() {
     vulkanContext = std::make_unique<VulkanContext>();
@@ -83,12 +87,53 @@ void Engine::createScene() {
     // Obstacle Mesh (Red)
     obstacleMesh = std::make_unique<Mesh>(vulkanContext.get(), createCubeVertices({1.0f, 0.2f, 0.2f}));
 
-    // 3. Obstacle Logic
-    // Add a simple obstacle
-    obstacles.push_back({
-        {2.0f, 0.0f, 2.0f}, // Min (On ground)
-        {3.0f, 1.0f, 3.0f}  // Max (Height 1)
-    });
+    // Obstacle Mesh (Red)
+    obstacleMesh = std::make_unique<Mesh>(vulkanContext.get(), createCubeVertices({1.0f, 0.2f, 0.2f}));
+
+    // 3. Load Level
+    loadLevel("LEVEL_1");
+}
+
+void Engine::loadLevel(std::string filename) {
+    // For now we ignore filename and load the embedded LEVEL_1
+    // In future we could map filenames to embedded assets or use a virtual filesystem
+    
+    std::string levelData = Assets::LEVEL1;
+    std::stringstream file(levelData);
+    
+    obstacles.clear();
+    std::string line;
+    int row = 0;
+    
+    // Grid: Z increases with rows (down), X increases with columns (right)
+    // Map center offset could be added later. For now, top-left of file is (0,0) in world?
+    // Let's center it a bit. Let's say top-left is (-10, -10) or similar.
+    // Or just start at (0,0) and let the player figure it out.
+    // Let's use (x, z) = (col, row). 1 unit per char.
+    
+    float offsetZ = -5.0f; // Center grid roughly
+    float offsetX = -10.0f;
+    
+    while (std::getline(file, line)) {
+        for (int col = 0; col < line.length(); col++) {
+            char c = line[col];
+            float x = static_cast<float>(col) + offsetX;
+            float z = static_cast<float>(row) + offsetZ;
+            
+            if (c == '#') {
+                // Obstacle (1x1x1)
+                // Position is centered at x, 0.5 (on ground), z
+                // AABB Min/Max
+                glm::vec3 min{x - 0.5f, 0.0f, z - 0.5f};
+                glm::vec3 max{x + 0.5f, 1.0f, z + 0.5f};
+                obstacles.push_back({min, max});
+            } else if (c == 'P') {
+                // Player Start
+                playerPosition = {x, 1.0f, z}; // Slightly above ground
+            }
+        }
+        row++;
+    }
 }
 
 
