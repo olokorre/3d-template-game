@@ -41,11 +41,11 @@ FetchContent_MakeAvailable(vk-bootstrap)
 # Vulkan Memory Allocator (VMA)
 message(STATUS "Fetching VMA...")
 FetchContent_Declare(
-    VulkanMemoryAllocator
+    vma
     GIT_REPOSITORY https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
     GIT_TAG v3.1.0
 )
-FetchContent_MakeAvailable(VulkanMemoryAllocator)
+FetchContent_MakeAvailable(vma)
 
 # Find Vulkan SDK
 find_package(Vulkan REQUIRED)
@@ -110,6 +110,6 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE GLFW_INCLUDE_VULKAN GLFW_INCL
 
 # VMA is header-only but needs implementation config usually in one cpp file
 # We will handle VMA implementation define in src/renderer/vk_mem_alloc.cpp later
-target_include_directories(${PROJECT_NAME} PRIVATE ${VulkanMemoryAllocator_SOURCE_DIR}/include)
+target_include_directories(${PROJECT_NAME} PRIVATE ${vma_SOURCE_DIR}/include)
 
 # Shaders (TODO: Add shader compilation step)
