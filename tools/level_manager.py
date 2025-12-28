@@ -20,26 +20,56 @@ namespace Assets {{
 
 PALETTE = {
     '#': {'color': 'red', 'label': 'Wall (#)'},
+    'E': {'color': 'green', 'label': 'Exit (E)'},
     'P': {'color': 'blue', 'label': 'Player (P)'},
     '.': {'color': 'white', 'label': 'Empty (.)'}
 }
 
-class LevelEditor(tk.Tk):
-    def __init__(self, level_name):
-        super().__init__()
+# Template for AllLevels.h
+ALL_LEVELS_TEMPLATE = """#pragma once
+#include <vector>
+#include <string>
+{includes}
+
+namespace Assets {{
+    const std::vector<std::string> ALL_LEVELS = {{
+{list_items}
+    }};
+}}
+"""
+
+def generate_registry():
+    if not LEVELS_DIR.exists():
+        return
+    headers = sorted([f for f in os.listdir(LEVELS_DIR) if f.endswith('.h') and f != 'AllLevels.h'])
+    includes = ""
+    list_items = ""
+    for h in headers:
+        includes += f'#include "{h}"\n'
+        var_name = h.replace('.h', '').upper()
+        list_items += f'        {var_name},\n'
+    content = ALL_LEVELS_TEMPLATE.format(includes=includes, list_items=list_items)
+    reg_path = LEVELS_DIR / 'AllLevels.h'
+    with open(reg_path, 'w') as f:
+        f.write(content)
+    print(f"Updated registry: {reg_path}")
+
+class LevelEditor(tk.Toplevel):
+    def __init__(self, parent, level_name):
+        super().__init__(parent)
         self.title(f"Level Editor - {level_name}")
         self.level_name = level_name
         self.txt_path, self.header_path = self.get_level_paths(level_name)
         
-        self.grid_data = [] # List of lists of chars
-        self.buttons = []   # List of lists of Button widgets
+        self.grid_data = [] 
+        self.buttons = []   
         self.rows = 15
         self.cols = 20
         self.current_tool = '#'
-        self.is_drawing = False
-
+        
         self.create_widgets()
         self.load_level()
+        self.grab_set() # Modal-like
 
     def get_level_paths(self, level_name):
         txt_path = LEVELS_DIR / f"{level_name.lower()}.txt"
@@ -47,11 +77,9 @@ class LevelEditor(tk.Tk):
         return txt_path, header_path
 
     def create_widgets(self):
-        # Toolbar
         toolbar = tk.Frame(self, bg='gray')
         toolbar.pack(side=tk.TOP, fill=tk.X)
         
-        # Tools
         lbl_tool = tk.Label(toolbar, text="Tool:", bg='gray', fg='white')
         lbl_tool.pack(side=tk.LEFT, padx=5)
         
@@ -62,14 +90,12 @@ class LevelEditor(tk.Tk):
                                  command=self.set_tool)
             btn.pack(side=tk.LEFT, padx=2)
 
-        # Actions
         btn_save = tk.Button(toolbar, text="Save & Build", command=self.save_and_build, bg='green', fg='white')
         btn_save.pack(side=tk.RIGHT, padx=5)
         
         btn_resize = tk.Button(toolbar, text="Resize", command=self.resize_dialog)
         btn_resize.pack(side=tk.RIGHT, padx=5)
 
-        # Canvas/Grid Frame
         self.grid_frame = tk.Frame(self)
         self.grid_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
@@ -83,48 +109,30 @@ class LevelEditor(tk.Tk):
                 if lines:
                     self.rows = len(lines)
                     self.cols = max(len(line) for line in lines)
-                    self.grid_data = []
-                    for r in range(self.rows):
-                        row_data = []
-                        line = lines[r]
-                        for c in range(self.cols):
-                            if c < len(line):
-                                row_data.append(line[c])
-                            else:
-                                row_data.append('.')
-                        self.grid_data.append(row_data)
+                    self.grid_data = [[c for c in line.ljust(self.cols, '.')] for line in lines]
                 else:
                     self.init_empty_grid()
         else:
             self.init_empty_grid()
-        
         self.render_grid()
 
     def init_empty_grid(self):
         self.grid_data = [['.' for _ in range(self.cols)] for _ in range(self.rows)]
 
     def render_grid(self):
-        # Clear existing buttons
         for widget in self.grid_frame.winfo_children():
             widget.destroy()
-            
         self.buttons = []
-        
         cell_size = 25
-        
         for r in range(self.rows):
             row_buttons = []
             for c in range(self.cols):
                 char = self.grid_data[r][c]
                 color = PALETTE.get(char, PALETTE['.'])['color']
-                
                 btn = tk.Frame(self.grid_frame, width=cell_size, height=cell_size, bg=color, borderwidth=1, relief="ridge")
                 btn.grid(row=r, column=c)
-                
-                # Bind events
                 btn.bind('<Button-1>', lambda e, r=r, c=c: self.on_click(r, c))
                 btn.bind('<B1-Motion>', lambda e, r=r, c=c: self.on_drag(e, r, c))
-                
                 row_buttons.append(btn)
             self.buttons.append(row_buttons)
 
@@ -137,8 +145,6 @@ class LevelEditor(tk.Tk):
         self.paint(r, c)
 
     def on_drag(self, event, r, c):
-        # Calculate cell from mouse position relative to grid_frame (imperfect but simple)
-        # Better approach: find widget under mouse
         widget = event.widget.winfo_containing(event.x_root, event.y_root)
         if widget in self.grid_frame.winfo_children():
              info = widget.grid_info()
@@ -153,63 +159,120 @@ class LevelEditor(tk.Tk):
             self.update_cell_visual(r, c)
 
     def resize_dialog(self):
-        new_cols = simpledialog.askinteger("Resize", "Enter new width (cols):", initialvalue=self.cols, minvalue=1)
-        new_rows = simpledialog.askinteger("Resize", "Enter new height (rows):", initialvalue=self.rows, minvalue=1)
-        
+        new_cols = simpledialog.askinteger("Resize", "New width:", initialvalue=self.cols, minvalue=1)
+        new_rows = simpledialog.askinteger("Resize", "New height:", initialvalue=self.rows, minvalue=1)
         if new_cols and new_rows:
-            # Resize data
             new_data = [['.' for _ in range(new_cols)] for _ in range(new_rows)]
             for r in range(min(self.rows, new_rows)):
                 for c in range(min(self.cols, new_cols)):
                     new_data[r][c] = self.grid_data[r][c]
-            
-            self.rows = new_rows
-            self.cols = new_cols
-            self.grid_data = new_data
+            self.rows, self.cols, self.grid_data = new_rows, new_cols, new_data
             self.render_grid()
 
     def save_and_build(self):
         try:
-            # 1. Save TXT
-            self.txt_path.parent.mkdir(parents=True, exist_ok=True)
-            content = ""
-            for row in self.grid_data:
-                content += "".join(row) + "\n"
-            
-            with open(self.txt_path, 'w') as f:
-                f.write(content)
-            print(f"Saved {self.txt_path}")
-
-            # 2. Build Header
+            content = "\n".join("".join(row) for row in self.grid_data) + "\n"
+            with open(self.txt_path, 'w') as f: f.write(content)
             var_name = self.level_name.upper()
-            header_content = HEADER_TEMPLATE.format(
-                var_name=var_name,
-                content=content.strip()
-            )
-            
-            with open(self.header_path, 'w') as f:
-                f.write(header_content)
-            print(f"Built {self.header_path}")
-            
-            messagebox.showinfo("Success", f"Level saved and built!\nRecompile the game to see changes.")
-            
+            header_content = HEADER_TEMPLATE.format(var_name=var_name, content=content.strip())
+            with open(self.header_path, 'w') as f: f.write(header_content)
+            generate_registry()
+            messagebox.showinfo("Success", "Level saved and built!")
         except Exception as e:
             messagebox.showerror("Error", str(e))
 
+class LevelBrowser(tk.Tk):
+    def __init__(self):
+        super().__init__()
+        self.title("Level Manager")
+        self.geometry("400x500")
+        
+        lbl = tk.Label(self, text="Available Levels", font=('Arial', 14, 'bold'))
+        lbl.pack(pady=10)
+        
+        self.listbox = tk.Listbox(self, font=('Arial', 12))
+        self.listbox.pack(fill=tk.BOTH, expand=True, padx=20, pady=5)
+        
+        btn_frame = tk.Frame(self)
+        btn_frame.pack(fill=tk.X, padx=20, pady=10)
+        
+        tk.Button(btn_frame, text="New Level", command=self.new_level).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=2)
+        tk.Button(btn_frame, text="Edit Selected", command=self.edit_selected).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=2)
+        tk.Button(btn_frame, text="Delete", command=self.delete_selected, bg='red', fg='white').pack(side=tk.LEFT, expand=True, fill=tk.X, padx=2)
+        
+        self.refresh_list()
+
+    def refresh_list(self):
+        self.listbox.delete(0, tk.END)
+        if not LEVELS_DIR.exists():
+            return
+        levels = sorted([f.stem for f in LEVELS_DIR.glob("*.txt")])
+        for level in levels:
+            self.listbox.insert(tk.END, level)
+
+    def new_level(self):
+        name = simpledialog.askstring("New Level", "Enter level name:")
+        if name:
+            name = name.lower().replace(" ", "_")
+            txt_path = LEVELS_DIR / f"{name}.txt"
+            if txt_path.exists():
+                messagebox.showerror("Error", "Level already exists!")
+                return
+            # Create a basic template
+            with open(txt_path, 'w') as f:
+                f.write("P.........\n" + "..........\n" * 4 + "##########\n")
+            self.refresh_list()
+            LevelEditor(self, name)
+
+    def edit_selected(self):
+        selection = self.listbox.curselection()
+        if not selection:
+            messagebox.showwarning("Warning", "Select a level first!")
+            return
+        name = self.listbox.get(selection[0])
+        LevelEditor(self, name)
+
+    def delete_selected(self):
+        selection = self.listbox.curselection()
+        if not selection: return
+        name = self.listbox.get(selection[0])
+        if messagebox.askyesno("Confirm Delete", f"Are you sure you want to delete '{name}'?"):
+            txt_path = LEVELS_DIR / f"{name}.txt"
+            header_path = LEVELS_DIR / f"{name.capitalize()}.h"
+            if txt_path.exists(): txt_path.unlink()
+            if header_path.exists(): header_path.unlink()
+            generate_registry()
+            self.refresh_list()
+
 def main():
-    if len(sys.argv) < 2:
-        print("Usage: level_manager.py <level_name>")
-        # Default fallback
-        sys.argv.append("level1")
-
-    level_name = sys.argv[1]
+    parser = argparse.ArgumentParser()
+    parser.add_argument('level', nargs='?', help="Name of level to open directly")
+    parser.add_argument('--build', action='store_true', help="Headless build")
+    args = parser.parse_args()
     
-    # Check if header exists to ensure folders
-    if not os.path.exists(LEVELS_DIR):
-        os.makedirs(LEVELS_DIR)
+    LEVELS_DIR.mkdir(parents=True, exist_ok=True)
 
-    app = LevelEditor(level_name)
-    app.mainloop()
+    if args.build and args.level:
+        txt_path = LEVELS_DIR / f"{args.level.lower()}.txt"
+        header_path = LEVELS_DIR / f"{args.level.capitalize()}.h"
+        if not txt_path.exists():
+            print(f"Error: {txt_path} not found.")
+            sys.exit(1)
+        with open(txt_path, 'r') as f: content = f.read()
+        var_name = args.level.upper()
+        header_content = HEADER_TEMPLATE.format(var_name=var_name, content=content.strip())
+        with open(header_path, 'w') as f: f.write(header_content)
+        generate_registry()
+        print(f"Built {args.level}")
+    else:
+        if args.level:
+            root = tk.Tk()
+            root.withdraw() # Hide main window
+            LevelEditor(root, args.level)
+            root.mainloop()
+        else:
+            app = LevelBrowser()
+            app.mainloop()
 
 if __name__ == "__main__":
     main()

@@ -12,7 +12,7 @@
 #include <stdexcept>
 #include <fstream>
 #include <sstream>
-#include "../assets/levels/Level1.h"
+#include "../assets/levels/AllLevels.h"
 
 Engine::Engine() {
     vulkanContext = std::make_unique<VulkanContext>();
@@ -90,18 +90,30 @@ void Engine::createScene() {
     // Obstacle Mesh (Red)
     obstacleMesh = std::make_unique<Mesh>(vulkanContext.get(), createCubeVertices({1.0f, 0.2f, 0.2f}));
 
+    // Exit Mesh (Green)
+    exitMesh = std::make_unique<Mesh>(vulkanContext.get(), createCubeVertices({0.0f, 1.0f, 0.0f}));
+
     // 3. Load Level
-    loadLevel("LEVEL_1");
+    loadLevel(currentLevelIndex);
 }
 
-void Engine::loadLevel(std::string filename) {
-    // For now we ignore filename and load the embedded LEVEL_1
-    // In future we could map filenames to embedded assets or use a virtual filesystem
-    
-    std::string levelData = Assets::LEVEL1;
+void Engine::loadLevel(int levelIndex) {
+    if (levelIndex >= Assets::ALL_LEVELS.size()) {
+        std::cout << "Parabéns! Você completou todas as fases!\n";
+        currentLevelIndex = 0; // Reset
+        levelIndex = 0;
+    }
+
+    std::string levelData = Assets::ALL_LEVELS[levelIndex];
     std::stringstream file(levelData);
     
     obstacles.clear();
+    exits.clear();
+    
+    // Reset Physics State
+    playerVelocityY = 0.0f;
+    isGrounded = false;
+    
     std::string line;
     int row = 0;
     
@@ -130,6 +142,11 @@ void Engine::loadLevel(std::string filename) {
             } else if (c == 'P') {
                 // Player Start
                 playerPosition = {x, 1.0f, z}; // Slightly above ground
+            } else if (c == 'E') {
+                // Exit Block
+                glm::vec3 min{x - 0.5f, 0.0f, z - 0.5f};
+                glm::vec3 max{x + 0.5f, 1.0f, z + 0.5f};
+                exits.push_back({min, max});
             }
         }
         row++;
@@ -287,6 +304,17 @@ void Engine::processInput() {
     
     playerPosition.y = nextY;
 
+    // Check Exit Collision
+    AABB pBox{{-0.5f, -0.5f, -0.5f}, {0.5f, 0.5f, 0.5f}};
+    for (const auto& exit : exits) {
+        if (checkCollision(playerPosition, pBox, exit)) {
+            std::cout << "Fase completada! Carregando próxima fase...\n";
+            currentLevelIndex++;
+            loadLevel(currentLevelIndex);
+            break;
+        }
+    }
+
     // Mouse Input
     double xpos, ypos;
     glfwGetCursorPos(window, &xpos, &ypos);
@@ -393,6 +421,18 @@ void Engine::recordCommandBuffer(VkCommandBuffer buffer, uint32_t imageIndex) {
             
             vkCmdPushConstants(buffer, pipeline->getPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4), &obsPush);
             obstacleMesh->draw(buffer);
+        }
+    }
+
+    if (exitMesh) {
+        exitMesh->bind(buffer);
+        for (const auto& exit : exits) {
+            glm::vec3 center = (exit.min + exit.max) * 0.5f;
+            glm::mat4 exitModel = glm::translate(glm::mat4(1.0f), center);
+            glm::mat4 exitPush = projectionView * exitModel;
+            
+            vkCmdPushConstants(buffer, pipeline->getPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4), &exitPush);
+            exitMesh->draw(buffer);
         }
     }
 
@@ -523,11 +563,12 @@ void Engine::cleanup() {
             swapchain->cleanup();
         }
 
+        obstacleMesh.reset();
+        exitMesh.reset();
+        pipeline.reset(); 
+        camera.reset();
         groundMesh.reset();
         playerMesh.reset();
-        obstacleMesh.reset();
-        pipeline.reset(); 
-
         vulkanContext->cleanup(); // Destroys allocator
         
         glfwDestroyWindow(window);

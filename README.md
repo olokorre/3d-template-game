@@ -14,7 +14,9 @@ Este projeto é um motor de jogo 3D simples escrito em **C++20** utilizando **Vu
 
 - `src/core`: Classes principais (Engine, Camera, lógica de loop).
 - `src/renderer`: Abstrações do Vulkan (Context, Pipeline, Mesh, Swapchain).
-- `assets/shaders`: Shaders GLSL (compilados automaticamente para SPIR-V pelo CMake).
+- `src/assets/shaders`: Shaders GLSL (compilados automaticamente para SPIR-V).
+- `src/assets/levels`: Arquivos de nível (.txt) e headers embutidos (.h).
+- `tools`: Ferramentas Python para desenvolvimento.
 - `external`: Dependências gerenciadas via CMake FetchContent.
 
 ## Pré-requisitos
@@ -22,15 +24,14 @@ Este projeto é um motor de jogo 3D simples escrito em **C++20** utilizando **Vu
 - **CMake** (3.20+)
 - **Compilador C++** compatível com C++20 (GCC 11+, Clang 12+, MSVC Latest)
 - **Vulkan SDK** instalado e validado (`vulkaninfo`).
-- **Drivers de GPU** atualizados.
-- **Pacotes de desenvolvimento do sistema** (X11/Wayland libs no Linux).
+- **Python 3** com `tkinter` instalado (para o Editor de Níveis).
 
 ## Como Compilar e Rodar
 
 1. Clone o repositório:
    ```bash
    git clone <URL>
-   cd <NOME_DA_PASTA>
+   cd doido
    ```
 
 2. Crie a pasta de build:
@@ -57,24 +58,28 @@ Este projeto é um motor de jogo 3D simples escrito em **C++20** utilizando **Vu
 
 ## Ferramentas de Desenvolvimento
 
-### Editor de Níveis Visual (GUI)
-Para abrir o editor visual e desenhar seu mapa:
+### Editor de Níveis Visual (Level Manager)
+O projeto inclui um editor visual completo para criação de fases.
 
 ```bash
-python3 tools/level_manager.py level1
+python3 tools/level_manager.py
 ```
 
 **Funcionalidades:**
-- **Pintar**: Selecione uma ferramenta (Wall, Player, Empty) e clique/arraste na grade.
-- **Save & Build**: Salva o arquivo e recompila o header automaticamente.
-- **Resize**: Altera o tamanho do mapa.
+- **Level Browser**: Interface para listar, criar novas fases e deletar fases antigas.
+- **Grade Interativa**: Pintura de tiles com o mouse (Wall, Player Start, Exit).
+- **Sistema de Build**: Ao salvar, a ferramenta gera um header C++ e atualiza o registro global (`AllLevels.h`), embutindo a fase diretamente no executável.
+- **Resize**: Altera as dimensões da fase dinamicamente.
 
-Obs: Após clicar em "Save & Build", você ainda precisa recompilar o jogo (`cmake --build .`) para atualizar o binário.
+**Nota**: Após salvar no editor, é necessário recompilar o jogo (`cmake --build .`) para aplicar as mudanças.
 
 ## Status Atual
 
-- [x] Renderização Vulkan básica (Triângulos, Shades).
-- [x] Carregamento de Meshes (Cubos).
-- [x] Câmera Orbital.
-- [x] Física Simples (Gravidade, Colisão AABB).
-- [ ] Física Avançada (Jolt Physics).
+- [x] Renderização Vulkan (Triângulos, Cubos, Shaders).
+- [x] Câmera Orbital Suave.
+- [x] Sistema de Níveis Dinâmico (ASCII para Header Embedding).
+- [x] Editor de Níveis GUI (Python/Tkinter).
+- [x] Progressão de Níveis (Zonas de Saída e Transições).
+- [x] Física MVP (Gravidade, Colisão AABB).
+- [ ] Física Avançada (Integração Jolt Physics).
+- [ ] Refatoração do Sistema de Input.

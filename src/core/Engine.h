@@ -38,6 +38,7 @@ private:
     std::unique_ptr<Mesh> groundMesh;
     std::unique_ptr<Mesh> playerMesh;
     std::unique_ptr<Mesh> obstacleMesh;
+    std::unique_ptr<Mesh> exitMesh;
     
     VkCommandBuffer commandBuffer{VK_NULL_HANDLE};
 
@@ -54,6 +55,8 @@ private:
     };
     
     std::vector<AABB> obstacles;
+    std::vector<AABB> exits;
+    int currentLevelIndex = 0;
     bool checkCollision(const glm::vec3& pos, const AABB& playerBox, const AABB& obstacle);
 
     // Camera State
@@ -70,7 +73,7 @@ private:
     void createPipeline();
     void createCommandBuffer();
     void createScene();
-    void loadLevel(std::string filename);
+    void loadLevel(int levelIndex);
     void updateCamera();
     void drawFrame();
     void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);

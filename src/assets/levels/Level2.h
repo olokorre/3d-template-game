@@ -1,0 +1,13 @@
+#pragma once
+#include <string>
+
+namespace Assets {
+    constexpr const char* LEVEL2 = R"(
+P.........
+..........
+........E.
+..........
+..........
+##########
+)";
+}

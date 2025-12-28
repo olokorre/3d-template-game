@@ -30,8 +30,19 @@ Este arquivo serve como guia para agentes de IA que trabalharão neste projeto n
     - Colisão com chão (Ground Plane) hardcoded em `y < 0.5f`.
     - Colisão com obstáculos usa struct `AABB` e loop simples.
 - **Roadmap**: Esta lógica deve ser removida e substituída pela **Jolt Physics** na Fase 2.
+- **Saída de Nível (Exit)**:
+    - Blocos marcados com `E` são armazenados no vetor `exits`.
+    - Colisão com `E` dispara `currentLevelIndex++` e recarrega o nível.
+- **Resets**: `loadLevel` reseta `playerVelocityY` e `isGrounded` para evitar bugs de transição física.
 
-### 4. Input e Câmera
+### 4. Level Design System (Embedded ASCII)
+- **Fluxo**: `.txt` (Editor) -> `.h` (String Literal) -> `AllLevels.h` (Registry/Vector).
+- **Tool**: `tools/level_manager.py` (GUI Tkinter).
+    - Gera headers individuais para cada nível.
+    - Mantém `AllLevels.h` atualizado com um `std::vector<std::string>` contendo todas as fases.
+- **Engine**: A classe `Engine` lê o `ALL_LEVEL_VECTOR` e parseia os caracteres para instanciar obstáculos e o spawn point do player.
+
+### 5. Input e Câmera
 - **Input**: GLFW (polling em `Engine::run`). Lógica de controle misturada em `processInput` (Refactoring needed).
 - **Câmera**: Orbital/Arcball.
     - `cameraYaw` / `cameraPitch`: Controle esférico.
@@ -44,14 +55,15 @@ Este arquivo serve como guia para agentes de IA que trabalharão neste projeto n
     - `glm`: Matemática (vec3, mat4).
     - `vkb`: Inicialização Vulkan.
 3. **Segurança**: Sempre verifique `VK_SUCCESS`. Use `std::runtime_error` para falhas fatais na inicialização.
+4. **Alocação**: Utilize VMA via `Mesh.h`. Lembre-se de dar `reset()` nos Smart Pointers em `cleanup()` para evitar assertions do VMA.
 
 ## Arquivos Chave
-- `src/core/Engine.cpp`: Coração do jogo. Loop principal, lógica de jogo (atualmente).
+- `src/core/Engine.cpp`: Coração do jogo. Loop principal e lógica de colisão.
+- `src/assets/levels/AllLevels.h`: Registro central de todos os níveis embutidos.
+- `tools/level_manager.py`: Ferramenta principal para design de assets/fases.
 - `src/core/Camera.cpp`: Matrizes de View/Projection. Contém o fix de Y-flip.
-- `src/renderer/Mesh.cpp`: Gerenciamento de buffers de geometria.
-- `src/renderer/Pipeline.cpp`: Configuração do pipeline gráfico (Rasterization, Depth Test, etc).
 
 ## Próximos Passos Sugeridos
-1. **Refatoração**: Mover lógica de Input de `Engine.cpp` para classe `InputManager`.
-2. **Integração Física**: Adicionar Jolt Physics para substituir a física AABB simples.
+1. **Refatoração de Input**: Mover lógica de polling para uma classe `InputManager`.
+2. **Integração Jolt Physics**: Substituir a física AABB customizada por uma simulação real.
 3. **Assets**: Implementar carregador de GLTF para substituir cubos procedurais.
