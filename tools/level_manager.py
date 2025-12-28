@@ -8,6 +8,7 @@ from pathlib import Path
 
 # Configuration
 LEVELS_DIR = Path("src/assets/levels")
+ORDER_FILE = LEVELS_DIR / "order.cfg"
 HEADER_TEMPLATE = """#pragma once
 #include <string>
 
@@ -22,6 +23,8 @@ PALETTE = {
     '#': {'color': 'red', 'label': 'Wall (#)'},
     'E': {'color': 'green', 'label': 'Exit (E)'},
     'P': {'color': 'blue', 'label': 'Player (P)'},
+    'X': {'color': 'magenta', 'label': 'Static (X)'},
+    'F': {'color': 'orange', 'label': 'Follower (F)'},
     '.': {'color': 'white', 'label': 'Empty (.)'}
 }
 
@@ -38,16 +41,43 @@ namespace Assets {{
 }}
 """
 
+def load_order():
+    if not ORDER_FILE.exists():
+        return []
+    with open(ORDER_FILE, 'r') as f:
+        return [line.strip() for line in f if line.strip()]
+
+def save_order(order):
+    LEVELS_DIR.mkdir(parents=True, exist_ok=True)
+    with open(ORDER_FILE, 'w') as f:
+        for level in order:
+            f.write(f"{level}\n")
+
 def generate_registry():
     if not LEVELS_DIR.exists():
         return
-    headers = sorted([f for f in os.listdir(LEVELS_DIR) if f.endswith('.h') and f != 'AllLevels.h'])
+    
+    order = load_order()
+    existing_levels = [f.stem for f in LEVELS_DIR.glob("*.txt")]
+    
+    # Filter order to only include existing levels, and add new ones
+    final_order = [lvl for lvl in order if lvl in existing_levels]
+    for lvl in sorted(existing_levels):
+        if lvl not in final_order:
+            final_order.append(lvl)
+    
+    save_order(final_order)
+    
     includes = ""
     list_items = ""
-    for h in headers:
-        includes += f'#include "{h}"\n'
-        var_name = h.replace('.h', '').upper()
-        list_items += f'        {var_name},\n'
+    for level in final_order:
+        header_name = f"{level.capitalize()}.h"
+        header_path = LEVELS_DIR / header_name
+        if header_path.exists():
+            includes += f'#include "{header_name}"\n'
+            var_name = level.upper()
+            list_items += f'        {var_name},\n'
+            
     content = ALL_LEVELS_TEMPLATE.format(includes=includes, list_items=list_items)
     reg_path = LEVELS_DIR / 'AllLevels.h'
     with open(reg_path, 'w') as f:
@@ -200,15 +230,46 @@ class LevelBrowser(tk.Tk):
         tk.Button(btn_frame, text="Edit Selected", command=self.edit_selected).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=2)
         tk.Button(btn_frame, text="Delete", command=self.delete_selected, bg='red', fg='white').pack(side=tk.LEFT, expand=True, fill=tk.X, padx=2)
         
+        move_frame = tk.Frame(self)
+        move_frame.pack(fill=tk.X, padx=20, pady=5)
+        tk.Button(move_frame, text="↑ Move Up", command=lambda: self.move_level(-1)).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=2)
+        tk.Button(move_frame, text="↓ Move Down", command=lambda: self.move_level(1)).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=2)
+        
         self.refresh_list()
 
     def refresh_list(self):
         self.listbox.delete(0, tk.END)
         if not LEVELS_DIR.exists():
             return
-        levels = sorted([f.stem for f in LEVELS_DIR.glob("*.txt")])
-        for level in levels:
+        
+        order = load_order()
+        existing_levels = [f.stem for f in LEVELS_DIR.glob("*.txt")]
+        
+        final_order = [lvl for lvl in order if lvl in existing_levels]
+        for lvl in sorted(existing_levels):
+            if lvl not in final_order:
+                final_order.append(lvl)
+        
+        for level in final_order:
             self.listbox.insert(tk.END, level)
+        
+        save_order(final_order)
+
+    def move_level(self, direction):
+        selection = self.listbox.curselection()
+        if not selection: return
+        
+        idx = selection[0]
+        new_idx = idx + direction
+        
+        if 0 <= new_idx < self.listbox.size():
+            levels = list(self.listbox.get(0, tk.END))
+            levels[idx], levels[new_idx] = levels[new_idx], levels[idx]
+            
+            save_order(levels)
+            self.refresh_list()
+            self.listbox.select_set(new_idx)
+            generate_registry()
 
     def new_level(self):
         name = simpledialog.askstring("New Level", "Enter level name:")

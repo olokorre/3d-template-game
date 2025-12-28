@@ -87,8 +87,11 @@ void Engine::createScene() {
     // Obstacle Mesh (Red)
     obstacleMesh = std::make_unique<Mesh>(vulkanContext.get(), createCubeVertices({1.0f, 0.2f, 0.2f}));
 
-    // Obstacle Mesh (Red)
-    obstacleMesh = std::make_unique<Mesh>(vulkanContext.get(), createCubeVertices({1.0f, 0.2f, 0.2f}));
+    // Enemy Mesh (Magenta)
+    enemyMesh = std::make_unique<Mesh>(vulkanContext.get(), createCubeVertices({1.0f, 0.0f, 1.0f}));
+
+    // Follower Mesh (Orange)
+    followerMesh = std::make_unique<Mesh>(vulkanContext.get(), createCubeVertices({1.0f, 0.5f, 0.0f}));
 
     // Exit Mesh (Green)
     exitMesh = std::make_unique<Mesh>(vulkanContext.get(), createCubeVertices({0.0f, 1.0f, 0.0f}));
@@ -102,6 +105,8 @@ void Engine::loadLevel(int levelIndex) {
         std::cout << "Parabéns! Você completou todas as fases!\n";
         currentLevelIndex = 0; // Reset
         levelIndex = 0;
+        currentState = GameState::VICTORY;
+        return;
     }
 
     std::string levelData = Assets::ALL_LEVELS[levelIndex];
@@ -109,10 +114,14 @@ void Engine::loadLevel(int levelIndex) {
     
     obstacles.clear();
     exits.clear();
+    enemies.clear();
     
     // Reset Physics State
     playerVelocityY = 0.0f;
     isGrounded = false;
+    playerHealth = maxHealth;
+    playerKnockback = glm::vec3(0.0f);
+    currentState = GameState::PLAYING;
     
     std::string line;
     int row = 0;
@@ -126,7 +135,9 @@ void Engine::loadLevel(int levelIndex) {
     float offsetZ = -5.0f; // Center grid roughly
     float offsetX = -10.0f;
     
+    int maxCols = 0;
     while (std::getline(file, line)) {
+        if (line.length() > maxCols) maxCols = line.length();
         for (int col = 0; col < line.length(); col++) {
             char c = line[col];
             float x = static_cast<float>(col) + offsetX;
@@ -147,10 +158,77 @@ void Engine::loadLevel(int levelIndex) {
                 glm::vec3 min{x - 0.5f, 0.0f, z - 0.5f};
                 glm::vec3 max{x + 0.5f, 1.0f, z + 0.5f};
                 exits.push_back({min, max});
+            } else if (c == 'X') {
+                // Static Enemy
+                glm::vec3 pos{x, 0.5f, z};
+                AABB box{{x - 0.5f, 0.0f, z - 0.5f}, {x + 0.5f, 1.0f, z + 0.5f}};
+                enemies.push_back({box, pos, 'X'});
+            } else if (c == 'F') {
+                // Follower Enemy
+                glm::vec3 pos{x, 0.5f, z};
+                AABB box{{x - 0.5f, 0.0f, z - 0.5f}, {x + 0.5f, 1.0f, z + 0.5f}};
+                enemies.push_back({box, pos, 'F'});
             }
         }
         row++;
     }
+
+    // Set Boundaries
+    minX = offsetX - 0.5f;
+    maxX = offsetX + static_cast<float>(maxCols) - 0.5f;
+    minZ = offsetZ - 0.5f;
+    maxZ = offsetZ + static_cast<float>(row) - 0.5f;
+}
+
+void Engine::takeDamage(float amount, const glm::vec3& sourcePos) {
+    if (currentState != GameState::PLAYING) return;
+    
+    playerHealth -= amount;
+    // std::cout << "Vida: " << playerHealth << "/" << maxHealth << "\n";
+    
+    // Apply Knockback
+    if (amount > 0.0f) {
+        glm::vec3 knockDir = playerPosition - sourcePos;
+        knockDir.y = 0.0f; // Only horizontal knockback for now
+        if (glm::length(knockDir) < 0.001f) {
+            knockDir = glm::vec3(0.0f, 0.0f, 1.0f); // Default dir
+        }
+        playerKnockback = glm::normalize(knockDir) * 0.3f;
+    }
+
+    if (playerHealth <= 0) {
+        playerHealth = 0;
+        currentState = GameState::GAME_OVER;
+        std::cout << "GAME OVER! Pressione Enter para tentar novamente.\n";
+    }
+}
+
+void Engine::restartLevel() {
+    loadLevel(currentLevelIndex);
+}
+
+bool Engine::hasLineOfSight(const glm::vec3& start, const glm::vec3& end) {
+    glm::vec3 dir = end - start;
+    float dist = glm::length(dir);
+    if (dist < 0.001f) return true;
+    dir = glm::normalize(dir);
+
+    // Simple raycast: check points along the line
+    int steps = static_cast<int>(dist * 2.0f); // 0.5 unit steps
+    for (int i = 1; i <= steps; i++) {
+        glm::vec3 p = start + dir * (static_cast<float>(i) * 0.5f);
+        if (p.y < 0.0f) continue; // Below ground check?
+        
+        // Check against obstacles
+        for (const auto& obs : obstacles) {
+            if (p.x >= obs.min.x && p.x <= obs.max.x &&
+                p.y >= obs.min.y && p.y <= obs.max.y &&
+                p.z >= obs.min.z && p.z <= obs.max.z) {
+                return false; // Hitting a wall
+            }
+        }
+    }
+    return true;
 }
 
 
@@ -203,6 +281,28 @@ bool Engine::checkCollision(const glm::vec3& pos, const AABB& playerBox, const A
 }
 
 void Engine::processInput() {
+    if (currentState == GameState::MAIN_MENU) {
+        if (glfwGetKey(window, GLFW_KEY_ENTER) == GLFW_PRESS) {
+            currentState = GameState::PLAYING;
+            restartLevel(); // Force fresh start
+        }
+        return;
+    }
+
+    if (currentState == GameState::VICTORY) {
+        if (glfwGetKey(window, GLFW_KEY_ENTER) == GLFW_PRESS) {
+            currentState = GameState::MAIN_MENU;
+        }
+        return;
+    }
+
+    if (currentState == GameState::GAME_OVER) {
+        if (glfwGetKey(window, GLFW_KEY_ENTER) == GLFW_PRESS) {
+            restartLevel();
+        }
+        return; // Don't move while game over
+    }
+
     float speed = 0.05f; 
     
     float yawRad = glm::radians(cameraYaw);
@@ -213,29 +313,26 @@ void Engine::processInput() {
 
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) moveDir += forwardDir;
     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) moveDir -= forwardDir;
-    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) moveDir -= rightDir; // Inverted
-    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) moveDir += rightDir; // Inverted
+    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) moveDir -= rightDir; 
+    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) moveDir += rightDir; 
 
-    if (glm::length(moveDir) > 0.0f) {
-        moveDir = glm::normalize(moveDir);
-        glm::vec3 nextPos = playerPosition + moveDir * speed;
-        // Keep current Y for XZ movement check first (basic implementation)
-        nextPos.y = playerPosition.y; 
-        
-        // Check collision XZ
-        // (Simplified: Update XZ, then Y separately for now, or full 3D check)
-        // Let's do full 3D check.
-        // But wait, if we process XZ logic here, we haven't applied gravity yet.
-    }
-    
-    // Physics Update
+    // PHYSICS & MOVEMENT
     float gravity = 0.005f;
     float jumpForce = 0.15f;
     
+    // Apply Friction to knockback
+    if (glm::length(playerKnockback) > 0.001f) {
+        playerKnockback *= 0.92f; // Decay
+    } else {
+        playerKnockback = glm::vec3(0.0f);
+    }
+
+    // Combine player movement and knockback
+    glm::vec3 finalMove = moveDir * speed + playerKnockback;
+
     // Apply XZ Movement
-    if (glm::length(moveDir) > 0.0f) {
-        moveDir = glm::normalize(moveDir);
-        glm::vec3 nextPos = playerPosition + moveDir * speed;
+    if (glm::length(finalMove) > 0.0f) {
+        glm::vec3 nextPos = playerPosition + finalMove;
         nextPos.y = playerPosition.y; // Preserve Y for now
 
         bool collided = false;
@@ -251,6 +348,12 @@ void Engine::processInput() {
             playerPosition.z = nextPos.z;
         }
     }
+
+    // Apply Boundaries
+    if (playerPosition.x < minX) playerPosition.x = minX;
+    if (playerPosition.x > maxX) playerPosition.x = maxX;
+    if (playerPosition.z < minZ) playerPosition.z = minZ;
+    if (playerPosition.z > maxZ) playerPosition.z = maxZ;
 
     // Apply Gravity / Jump
     if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS && isGrounded) {
@@ -304,8 +407,59 @@ void Engine::processInput() {
     
     playerPosition.y = nextY;
 
-    // Check Exit Collision
+    // Enemy Update (Movement & Damage)
     AABB pBox{{-0.5f, -0.5f, -0.5f}, {0.5f, 0.5f, 0.5f}};
+    float enemySpeed = 0.02f;
+
+    for (size_t i = 0; i < enemies.size(); i++) {
+        auto& enemy = enemies[i];
+        if (enemy.type == 'F') {
+            // Follower Logic: check LOS
+            if (hasLineOfSight(enemy.position, playerPosition)) {
+                glm::vec3 toPlayer = playerPosition - enemy.position;
+                toPlayer.y = 0.0f; // Only move on XZ
+                if (glm::length(toPlayer) > 0.1f) {
+                    glm::vec3 nextEnemyPos = enemy.position + glm::normalize(toPlayer) * enemySpeed;
+                    
+                    // Collision check for enemy
+                    bool enemyCollided = false;
+                    for (const auto& obs : obstacles) {
+                        if (nextEnemyPos.x + 0.5f > obs.min.x && nextEnemyPos.x - 0.5f < obs.max.x &&
+                            nextEnemyPos.z + 0.5f > obs.min.z && nextEnemyPos.z - 0.5f < obs.max.z) {
+                            enemyCollided = true;
+                            break;
+                        }
+                    }
+
+                    // Enemy-Enemy Collision
+                    if (!enemyCollided) {
+                        for (size_t j = 0; j < enemies.size(); j++) {
+                            if (i == j) continue;
+                            const auto& other = enemies[j];
+                            float dist = glm::distance(nextEnemyPos, other.position);
+                            if (dist < 0.8f) { // Slightly less than 1.0 to avoid sticking
+                                enemyCollided = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (!enemyCollided) {
+                        enemy.position = nextEnemyPos;
+                        enemy.box.min = enemy.position - glm::vec3(0.5f, 0.5f, 0.5f);
+                        enemy.box.max = enemy.position + glm::vec3(0.5f, 0.5f, 0.5f);
+                    }
+                }
+            }
+        }
+
+        // Damage Check
+        if (checkCollision(playerPosition, pBox, enemy.box)) {
+            takeDamage(0.5f, enemy.position); // Pass position for knockback
+        }
+    }
+
+    // Check Exit Collision
     for (const auto& exit : exits) {
         if (checkCollision(playerPosition, pBox, exit)) {
             std::cout << "Fase completada! Carregando próxima fase...\n";
@@ -359,7 +513,15 @@ void Engine::recordCommandBuffer(VkCommandBuffer buffer, uint32_t imageIndex) {
     renderPassInfo.renderArea.extent = swapchain->getExtent();
 
     VkClearValue clearValues[2];
-    clearValues[0].color = {{0.1f, 0.1f, 0.1f, 1.0f}}; 
+    if (currentState == GameState::MAIN_MENU) {
+        clearValues[0].color = {{0.0f, 0.2f, 0.4f, 1.0f}}; 
+    } else if (currentState == GameState::GAME_OVER) {
+        clearValues[0].color = {{0.5f, 0.0f, 0.0f, 1.0f}}; 
+    } else if (currentState == GameState::VICTORY) {
+        clearValues[0].color = {{0.5f, 0.5f, 0.0f, 1.0f}}; 
+    } else {
+        clearValues[0].color = {{0.1f, 0.1f, 0.1f, 1.0f}}; 
+    }
     clearValues[1].depthStencil = {1.0f, 0};
 
     renderPassInfo.clearValueCount = 2;
@@ -433,6 +595,30 @@ void Engine::recordCommandBuffer(VkCommandBuffer buffer, uint32_t imageIndex) {
             
             vkCmdPushConstants(buffer, pipeline->getPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4), &exitPush);
             exitMesh->draw(buffer);
+        }
+    }
+
+    if (enemyMesh) {
+        enemyMesh->bind(buffer);
+        for (const auto& enemy : enemies) {
+            if (enemy.type == 'X') {
+                glm::mat4 enemyModel = glm::translate(glm::mat4(1.0f), enemy.position);
+                glm::mat4 enemyPush = projectionView * enemyModel;
+                vkCmdPushConstants(buffer, pipeline->getPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4), &enemyPush);
+                enemyMesh->draw(buffer);
+            }
+        }
+    }
+
+    if (followerMesh) {
+        followerMesh->bind(buffer);
+        for (const auto& enemy : enemies) {
+            if (enemy.type == 'F') {
+                glm::mat4 enemyModel = glm::translate(glm::mat4(1.0f), enemy.position);
+                glm::mat4 enemyPush = projectionView * enemyModel;
+                vkCmdPushConstants(buffer, pipeline->getPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4), &enemyPush);
+                followerMesh->draw(buffer);
+            }
         }
     }
 
@@ -564,6 +750,8 @@ void Engine::cleanup() {
         }
 
         obstacleMesh.reset();
+        enemyMesh.reset();
+        followerMesh.reset();
         exitMesh.reset();
         pipeline.reset(); 
         camera.reset();

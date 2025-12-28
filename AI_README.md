@@ -57,6 +57,27 @@ Este arquivo serve como guia para agentes de IA que trabalharão neste projeto n
 3. **Segurança**: Sempre verifique `VK_SUCCESS`. Use `std::runtime_error` para falhas fatais na inicialização.
 4. **Alocação**: Utilize VMA via `Mesh.h`. Lembre-se de dar `reset()` nos Smart Pointers em `cleanup()` para evitar assertions do VMA.
 
+### Sistemas de Gameplay e UI
+
+1. **Saúde e Dano**:
+   - `playerHealth` (100.0f) gerenciado na `Engine`. 
+   - Dano por contato com inimigos (`takeDamage`).
+   - Morte transiciona para `GameState::GAME_OVER`.
+
+2. **Inimigos (X)**:
+   - Símbolo `X` no `.txt` é convertido em AABB na lista `enemies`.
+   - Renderizados via `enemyMesh` (Magenta).
+   - Colisão por frame enquanto sobreposto ao player.
+
+3. **World Boundaries**:
+   - Calculados em `loadLevel` baseados nas dimensões do grid ASCII.
+   - Clamp de `playerPosition` em `processInput` para impedir saída do mapa.
+
+4. **Máquina de Estados (Menus)**:
+   - Estados: `MAIN_MENU`, `PLAYING`, `GAME_OVER`, `VICTORY`.
+   - Transições via `Enter`.
+   - Feedback visual via Clear Color do swapchain (Azul/Cinza/Vermelho/Ouro).
+
 ## Arquivos Chave
 - `src/core/Engine.cpp`: Coração do jogo. Loop principal e lógica de colisão.
 - `src/assets/levels/AllLevels.h`: Registro central de todos os níveis embutidos.
@@ -64,6 +85,7 @@ Este arquivo serve como guia para agentes de IA que trabalharão neste projeto n
 - `src/core/Camera.cpp`: Matrizes de View/Projection. Contém o fix de Y-flip.
 
 ## Próximos Passos Sugeridos
-1. **Refatoração de Input**: Mover lógica de polling para uma classe `InputManager`.
-2. **Integração Jolt Physics**: Substituir a física AABB customizada por uma simulação real.
+1. **Refatoração de Input**: Criar `InputManager` para limpar o `processInput` da `Engine`.
+2. **Física Jolt**: Substituir o sistema AABB manual por um Character Controller real.
+3. **UI Real**: Implementar renderização de texto e botões via ImGui ou sistema customizado.
 3. **Assets**: Implementar carregador de GLTF para substituir cubos procedurais.

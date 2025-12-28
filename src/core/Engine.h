@@ -39,14 +39,22 @@ private:
     std::unique_ptr<Mesh> playerMesh;
     std::unique_ptr<Mesh> obstacleMesh;
     std::unique_ptr<Mesh> exitMesh;
+    std::unique_ptr<Mesh> enemyMesh;
+    std::unique_ptr<Mesh> followerMesh;
     
     VkCommandBuffer commandBuffer{VK_NULL_HANDLE};
 
+    enum class GameState { MAIN_MENU, PLAYING, GAME_OVER, VICTORY };
+    GameState currentState{GameState::MAIN_MENU};
+
     // Game State
+    float playerHealth{100.0f};
+    float maxHealth{100.0f};
     glm::vec3 playerPosition{0.0f, 1.0f, 0.0f}; // Start slightly above ground
     float playerVelocityY{0.0f};
     bool isGrounded{false};
     float playerRotation{0.0f};
+    glm::vec3 playerKnockback{0.0f};
 
     // Physics State
     struct AABB {
@@ -54,10 +62,21 @@ private:
         glm::vec3 max;
     };
     
+    struct Enemy {
+        AABB box;
+        glm::vec3 position;
+        char type; // 'X' or 'F'
+    };
+    
     std::vector<AABB> obstacles;
     std::vector<AABB> exits;
+    std::vector<Enemy> enemies;
+    float minX{0}, maxX{0}, minZ{0}, maxZ{0};
     int currentLevelIndex = 0;
     bool checkCollision(const glm::vec3& pos, const AABB& playerBox, const AABB& obstacle);
+    bool hasLineOfSight(const glm::vec3& start, const glm::vec3& end);
+    void takeDamage(float amount, const glm::vec3& sourcePos = glm::vec3(0.0f));
+    void restartLevel();
 
     // Camera State
     float cameraYaw{0.0f};   // Angle around Y axis

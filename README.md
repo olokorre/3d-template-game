@@ -50,26 +50,23 @@ Este projeto é um motor de jogo 3D simples escrito em **C++20** utilizando **Vu
    ./Platformer3D
    ```
 
-## Controles
+### Como Jogar
+- **No Menu**: `Enter` para começar.
+- **No Jogo**:
+    - `WASD`: Movimentação.
+    - `Espaço`: Pulo.
+    - `Mouse`: Roda a câmera.
+- **No Game Over**: `Enter` para reiniciar fase.
+- **No Sucesso**: `Enter` para voltar ao menu.
 
-- **Mouse**: Rotacionar Câmera (Orbital).
-- **W / A / S / D**: Mover o Personagem (Relativo à Câmera).
-- **Espaço**: Pular.
-
-## Ferramentas de Desenvolvimento
-
-### Editor de Níveis Visual (Level Manager)
-O projeto inclui um editor visual completo para criação de fases.
-
-```bash
-python3 tools/level_manager.py
-```
-
-**Funcionalidades:**
-- **Level Browser**: Interface para listar, criar novas fases e deletar fases antigas.
-- **Grade Interativa**: Pintura de tiles com o mouse (Wall, Player Start, Exit).
-- **Sistema de Build**: Ao salvar, a ferramenta gera um header C++ e atualiza o registro global (`AllLevels.h`), embutindo a fase diretamente no executável.
-- **Resize**: Altera as dimensões da fase dinamicamente.
+### Editor de Níveis
+1. Execute `python3 tools/level_manager.py`.
+2. Use a paleta para colocar blocos:
+    - `Wall (#)`: Obstáculo vermelho.
+    - `Player (P)`: Start azul.
+    - `Exit (E)`: Saída verde.
+    - `Enemy (X)`: Inimigo magenta (tira vida!).
+3. Clique em **Save and Build** para atualizar o jogo.
 
 **Nota**: Após salvar no editor, é necessário recompilar o jogo (`cmake --build .`) para aplicar as mudanças.
 
@@ -81,5 +78,9 @@ python3 tools/level_manager.py
 - [x] Editor de Níveis GUI (Python/Tkinter).
 - [x] Progressão de Níveis (Zonas de Saída e Transições).
 - [x] Física MVP (Gravidade, Colisão AABB).
+- [x] **Sistemas de Gameplay**: Saúde, dano por contato (inimigos) e limites de fase.
+- [x] **Sistemas de Menus**: Main Menu, Game Over e Victory.
+- [x] **Editor de Níveis Visual (GUI)**: Tool Python para criar fases ASCII e embutir no C++.
+- [x] **Sistema de Progressão**: Carregamento automático de níveis via blocos de saída.
 - [ ] Física Avançada (Integração Jolt Physics).
 - [ ] Refatoração do Sistema de Input.

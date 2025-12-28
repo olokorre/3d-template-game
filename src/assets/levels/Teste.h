@@ -2,12 +2,12 @@
 #include <string>
 
 namespace Assets {
-    constexpr const char* LEVEL2 = R"(
-P.........
+    constexpr const char* TESTE = R"(
+P......XX.
+.......FF.
+..........
 ..........
 ........E.
-..........
-..........
 ##########
 )";
 }
