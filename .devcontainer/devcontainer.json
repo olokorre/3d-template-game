@@ -1,0 +1,21 @@
+{
+	"name": "C++",
+	"build": {
+		"dockerfile": "Dockerfile"
+	},
+	"features": {
+		"ghcr.io/devcontainers/features/python:1": {}
+	},
+	// 1. Exporta a variável de ambiente DISPLAY para o container
+	"containerEnv": {
+		"DISPLAY": "${localEnv:DISPLAY}"
+	},
+	// 2. Monta o socket do X11 e garante privilégios para acessar a GPU
+	"runArgs": [
+		"--net=host",
+		"-e",
+		"DISPLAY=${env:DISPLAY}",
+		"-v",
+		"/tmp/.X11-unix:/tmp/.X11-unix"
+	]
+}
